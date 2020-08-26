@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myproject
+---
+apiVersion: autoscaling/v2beta2 
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cpu-mem-autoscale 
+  namespace: myproject
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta1 
+    kind: Deployment 
+    name: nodepod 
+  minReplicas: 10
+  maxReplicas: 100
+  metrics: 
+  - type: Resource
+    resource:
+      name: cpu 
+      target:
+        type: Utilization 
+        averageUtilization: 50 
+      name: memory 
+      target:
+        type: Utilization 
+        averageUtilization: 60
+---
+apiVersion: scheduling.k8s.io/v1beta1
+kind: PriorityClass
+metadata:
+  name: high-priority
+  namespace: myproject
+value: 1000000
+globalDefault: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myregistrykey
+  namespace: myproject
+data:
+  .dockerconfigjson: UmVhbGx5IHJlYWxseSByZWVlZWVlZWVlZWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGx5eXl5eXl5eXl5eXl5eXl5eXl5eSBsbGxsbGxsbGxsbGxsbG9vb29vb29vb29vb29vb29vb29vb29vb29vb25ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubmdnZ2dnZ2dnZ2dnZ2dnZ2dnZ2cgYXV0aCBrZXlzCg==
+type: kubernetes.io/dockerconfigjson
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodeservice
+  namespace: myproject
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 40.71.21.26
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    nodePort: 30475
+  selector:
+    app: node
+    env: staging
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: nodepod
+  namespace: myproject
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: node
+      env: staging
+  template:
+    metadata:
+      labels:
+        app: node
+        env: staging
+      namespace: myproject
+    spec:
+      containers:
+      - name: nodeapp
+        image: nodejs-test:latest
+        resources: 
+          limits: 
+            cpu: 300m
+            memory: 200Mi
+          requests: 
+            cpu: 100m
+            memory: 100Mi
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: containerport
+        env:
+        - name: APP_HOST
+          value: AWS
+        - name: APP_PORT
+          value: '3000'      
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: myregistrykey
+      priorityClassName: high-priority
